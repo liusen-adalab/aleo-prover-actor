@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use pool_prover_message::PoolMessage;
 use rand::thread_rng;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use snarkvm::{
@@ -18,15 +19,17 @@ use tokio::sync::{
 };
 use tracing::{debug, error, info};
 
-use crate::{prover::ProverMsg, statistic::StatisticMsg};
+use crate::{client::ClientMsg, prover::ProverMsg, statistic::StatisticMsg};
 use tokio::task;
 
 pub struct Worker {
     pool: ThreadPool,
     terminator: Arc<AtomicBool>,
     ready: Arc<AtomicBool>,
+    #[allow(dead_code)]
     prover_router: Sender<ProverMsg>,
     statistic_router: Sender<StatisticMsg>,
+    client_router: Sender<ClientMsg>,
 }
 
 #[derive(Debug)]
@@ -39,6 +42,7 @@ impl Worker {
     pub fn new(
         prover_router: Sender<ProverMsg>,
         statistic_router: Sender<StatisticMsg>,
+        client_router: Sender<ClientMsg>,
     ) -> Sender<WorkerMsg> {
         let (tx, mut rx) = mpsc::channel(100);
         let worker = Worker {
@@ -47,6 +51,7 @@ impl Worker {
             ready: Arc::new(AtomicBool::new(true)),
             prover_router,
             statistic_router,
+            client_router,
         };
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
@@ -80,14 +85,14 @@ impl Worker {
         template: Arc<BlockTemplate<Testnet2>>,
         share_difficulty: u64,
     ) {
-        let block_height = template.block_height();
-        debug!("starting new work: {}", block_height);
+        let height = template.block_height();
+        debug!("starting new work: {}", height);
         self.wait_for_terminator();
 
         let terminator = self.terminator.clone();
         let ready = self.ready.clone();
-        let prover_router = self.prover_router.clone();
         let statistic_router = self.statistic_router.clone();
+        let client_router = self.client_router.clone();
         let (tx, rx) = oneshot::channel();
         self.pool.spawn(move || {
             ready.store(false, Ordering::SeqCst);
@@ -122,25 +127,23 @@ impl Worker {
                         }
                         debug!(
                             "Share found for block {} with weight {}",
-                            block_height,
+                            height,
                             u64::MAX / proof_difficulty
                         );
+                        if let Err(err) = client_router.try_send(ClientMsg::PoolMessage(
+                            PoolMessage::Submit(height, nonce, proof),
+                        )) {
+                            error!("failed to send submit to client router: {err}");
+                        }
                         if let Err(err) = statistic_router.try_send(StatisticMsg::Prove(
                             true,
                             (u64::MAX / share_difficulty) as u32,
                         )) {
                             error!("failed to report prove to statistic: {err}");
                         }
-                        if let Err(err) = prover_router.try_send(ProverMsg::Submit(
-                            nonce,
-                            proof,
-                            block_height,
-                        )) {
-                            error!("Failed to submit share: {}", err);
-                        }
                     }
                     Err(_) => {
-                        info!("block {} terminated", block_height);
+                        info!("block {} terminated", height);
                         break;
                     }
                 }

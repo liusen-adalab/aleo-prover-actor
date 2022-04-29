@@ -58,7 +58,7 @@ impl Client {
                     }
                     result = framed.next() => match result {
                         Some(Ok(message)) => {
-                            if Self::process_message(message, &prover_router).await.is_err(){
+                            if Self::stream_handle(message, &prover_router).await.is_err(){
                                 info!("error process message, breaking");
                                 // todo: maybe it is better to exit process
                                 break ;
@@ -120,7 +120,7 @@ impl Client {
         }
     }
 
-    async fn process_message(
+    async fn stream_handle(
         message: PoolMessage,
         prover_sender: &Sender<ProverMsg>,
     ) -> Result<()> {

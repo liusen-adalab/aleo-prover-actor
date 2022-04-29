@@ -1,10 +1,9 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use pool_prover_message::PoolMessage;
 use snarkvm::{
-    dpc::{testnet2::Testnet2, PoSWProof},
-    prelude::{Address, BlockTemplate, Network},
+    dpc::testnet2::Testnet2,
+    prelude::{Address, BlockTemplate},
 };
 use tokio::sync::{
     mpsc::{self, Sender},
@@ -30,7 +29,6 @@ pub struct Prover {
 pub enum ProverMsg {
     NewWork(BlockTemplate<Testnet2>, u64),
     SubmitResult(bool, Option<String>),
-    Submit(<Testnet2 as Network>::PoSWNonce, PoSWProof<Testnet2>, u32),
     Exit,
 }
 
@@ -46,9 +44,9 @@ impl Prover {
     pub async fn start_cpu(mut self, pool_ip: SocketAddr) -> Result<ProverHandler> {
         let (tx, mut rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
-        self.workers.push(Worker::new(tx.clone(), statistic_router.clone()));
         let client_router =
             Client::start(pool_ip, tx.clone(), self.name.clone(), self.address);
+        self.workers.push(Worker::new(tx.clone(), statistic_router.clone(), client_router.clone()));
 
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
@@ -63,7 +61,7 @@ impl Prover {
                     }
                     _ => {
                         if let Err(err) =
-                            self.process_msg(msg, &client_router, &statistic_router)
+                            self.process_msg(msg, &statistic_router)
                         {
                             error!("prover failed to process message: {err}");
                         }
@@ -109,7 +107,6 @@ impl Prover {
     fn process_msg(
         &mut self,
         msg: ProverMsg,
-        client_router: &Sender<ClientMsg>,
         statistic_router: &Sender<StatisticMsg>,
     ) -> Result<()> {
         match msg {
@@ -124,13 +121,6 @@ impl Prover {
                 {
                     error!("failed to send submit result to statistic mod: {err}");
                 }
-            }
-            ProverMsg::Submit(nonce, proof, height) => {
-                client_router
-                    .try_send(ClientMsg::PoolMessage(PoolMessage::Submit(
-                        height, nonce, proof,
-                    )))
-                    .context("failed to send submit to client router")?;
             }
             ProverMsg::Exit => {}
         }
