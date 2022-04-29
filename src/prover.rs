@@ -43,7 +43,7 @@ impl Prover {
         }
     }
 
-    pub fn start_cpu(mut self, pool_ip: SocketAddr) -> Result<ProverHandler> {
+    pub async fn start_cpu(mut self, pool_ip: SocketAddr) -> Result<ProverHandler> {
         let (tx, mut rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
         self.workers.push(Worker::new(tx.clone(), statistic_router.clone()));

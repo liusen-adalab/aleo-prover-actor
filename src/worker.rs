@@ -72,6 +72,7 @@ impl Worker {
             spin_loop();
         }
         self.terminator.store(false, Ordering::SeqCst);
+        debug!("the pool is ready to go");
     }
 
     async fn new_work(
@@ -79,17 +80,18 @@ impl Worker {
         template: Arc<BlockTemplate<Testnet2>>,
         share_difficulty: u64,
     ) {
+        let block_height = template.block_height();
+        debug!("starting new work: {}", block_height);
         self.wait_for_terminator();
 
         let terminator = self.terminator.clone();
-        let block_height = template.block_height();
         let ready = self.ready.clone();
         let prover_router = self.prover_router.clone();
         let statistic_router = self.statistic_router.clone();
         let (tx, rx) = oneshot::channel();
         self.pool.spawn(move || {
             ready.store(false, Ordering::SeqCst);
-            // todo: make sure excute here before return
+            // ensure new work starts before returning
             tx.send(()).unwrap();
             while !terminator.load(Ordering::SeqCst) {
                 match BlockHeader::mine_once_unchecked(
@@ -143,9 +145,9 @@ impl Worker {
                     }
                 }
             }
-            ready.store(false, Ordering::SeqCst);
+            ready.store(true, Ordering::SeqCst);
         });
-
         rx.await.unwrap();
+        debug!("spawned new work");
     }
 }
