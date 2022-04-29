@@ -38,7 +38,7 @@ impl Client {
         let (router, mut receiver) = mpsc::channel(10);
         let client = Client;
         task::spawn(async move {
-            let mut framed = client.connect_pool(pool_ip, address, name).await;
+            let mut framed = client.connect_pool(pool_ip, address, name.clone()).await;
 
             loop {
                 tokio::select! {
@@ -46,10 +46,11 @@ impl Client {
                         match message{
                             ClientMsg::PoolMessage(msg) => {
                                 let name = msg.name();
-                                debug!("Sending {} to server", name);
+                                debug!("Sending {} to pool server", name);
                                 if let Err(e) = framed.send(msg).await {
                                     error!("Error sending {}: {:?}", name, e);
                                 }
+                                debug!("sent {} to pool server", name);
                             }
                             ClientMsg::Exit(sender) => {
                                 sender.send(()).expect("client failed to respond exit msg");
@@ -68,9 +69,8 @@ impl Client {
                             warn!("Failed to read the message: {:?}", e);
                         }
                         None => {
-                            error!("Disconnected from server");
-                            sleep(Duration::from_secs(5)).await;
-                            break;
+                            error!("Disconnected from server, reconnecting...");
+                            framed = client.connect_pool(pool_ip, address, name.clone()).await;
                         }
                     }
                 }
