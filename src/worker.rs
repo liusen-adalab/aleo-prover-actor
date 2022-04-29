@@ -99,12 +99,6 @@ impl Worker {
                     -1,
                 ) {
                     Ok(block_header) => {
-                        if let Err(err) = statistic_router.try_send(StatisticMsg::Prove(
-                            (u64::MAX / share_difficulty) as u32,
-                        )) {
-                            error!("failed to report prove to statistic: {err}");
-                        }
-
                         let nonce = block_header.nonce();
                         let proof = block_header.proof().clone();
                         let proof_difficulty =
@@ -114,6 +108,14 @@ impl Worker {
                                 "Share difficulty target not met: {} > {}",
                                 proof_difficulty, share_difficulty
                             );
+                            if let Err(err) =
+                                statistic_router.try_send(StatisticMsg::Prove(
+                                    false,
+                                    (u64::MAX / share_difficulty) as u32,
+                                ))
+                            {
+                                error!("failed to report prove to statistic: {err}");
+                            }
                             continue;
                         }
                         debug!(
@@ -121,6 +123,12 @@ impl Worker {
                             block_height,
                             u64::MAX / proof_difficulty
                         );
+                        if let Err(err) = statistic_router.try_send(StatisticMsg::Prove(
+                            true,
+                            (u64::MAX / share_difficulty) as u32,
+                        )) {
+                            error!("failed to report prove to statistic: {err}");
+                        }
                         if let Err(err) = prover_router.try_send(ProverMsg::Submit(
                             nonce,
                             proof,
