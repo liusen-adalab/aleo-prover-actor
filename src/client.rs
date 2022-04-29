@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::process;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
@@ -149,6 +150,9 @@ impl Client {
                     .await
                     .context("")?;
                 debug!("Sent share result to prover");
+            }
+            PoolMessage::Exit => {
+                process::exit(0);
             }
             _ => {
                 debug!("Unhandled message: {}", message.name());
