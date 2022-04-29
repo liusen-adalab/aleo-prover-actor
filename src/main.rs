@@ -1,7 +1,8 @@
 use std::{future, net::SocketAddr};
 
-use aleo_prover_actor::prover::Prover;
 use aleo_prover_actor::create_key;
+use aleo_prover_actor::prover::Prover;
+use anyhow::Result;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
@@ -88,17 +89,16 @@ fn set_log(debug: bool) {
     tracing::subscriber::set_global_default(subscriber.with(file)).unwrap();
 }
 
-
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<()> {
     let opt = Opt::from_args();
     set_log(opt.debug);
 
     match opt.command {
         Command::GenKey => {
             println!("{}", create_key());
-            return;
-        },
+            return Ok(());
+        }
         Command::MineCpu {
             info,
             worker,
@@ -109,11 +109,16 @@ async fn main() {
                 .start_cpu(info.pool_ip, worker, thread_per_worker)
                 .await;
         }
-        Command::MineGpu { info, gpus, worker_per_gpu: worker } => {
+        Command::MineGpu {
+            info,
+            gpus,
+            worker_per_gpu: worker,
+        } => {
             let prover = Prover::new(info.name, info.address);
-            let _ = prover.start_gpu(info.pool_ip, worker, gpus).await;
+            let _ = prover.start_gpu(info.pool_ip, worker, gpus).await?;
         }
     }
 
-    future::pending().await
+    let () =future::pending().await;
+    Ok(())
 }

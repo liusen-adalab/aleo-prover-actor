@@ -78,13 +78,12 @@ impl Prover {
         worker: u8,
         gpus: Vec<u8>,
     ) -> Result<ProverHandler> {
+        let all = Device::all();
+         if all.is_empty() {
+            bail!("No available gpu in your device");
+        } 
         let gpus = if gpus.is_empty() {
-            let gpus = Device::all();
-            if gpus.is_empty() {
-                bail!("No available gpu in your device");
-            } else {
-                gpus.iter().enumerate().map(|(a, _)| a as u8).collect()
-            }
+            all.iter().enumerate().map(|(a, _)| a as u8).collect()
         } else {
             gpus
         };
