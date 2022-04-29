@@ -1,28 +1,105 @@
-use std::{future, net::SocketAddr, str::FromStr};
+use std::{future, net::SocketAddr};
 
 use aleo_prover_actor::prover::Prover;
+use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
+use structopt::StructOpt;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
+#[derive(StructOpt, Debug)]
+struct Opt {
+    #[structopt(short)]
+    /// use debug mode
+    debug: bool,
+
+    #[structopt(subcommand)]
+    command: Command,
+}
+
+#[derive(StructOpt, Debug)]
+enum Command {
+    GenKey,
+    /// mine with cpu
+    MineCpu {
+        #[structopt(flatten)]
+        info: Info,
+
+        /// Worker is a thread pool used to calculate proof
+        #[structopt(short, long, default_value = "1")]
+        worker: u8,
+
+        ///
+        /// Number of threads that every worker will use
+        /// It is recommended to make
+        /// `worker * thread-per-worker` < `amount of threads of your device`
+        #[structopt(short, long, default_value = "8")]
+        #[structopt(verbatim_doc_comment)]
+        thread_per_worker: u8,
+    },
+    /// mine with gpu
+    MineGpu {
+        #[structopt(flatten)]
+        info: Info,
+
+        #[structopt(short, long)]
+        #[structopt(verbatim_doc_comment)]
+        /// example: --gpus 0 2 4
+        /// it will use the gpu with index of 0, 2, 4, if they exist
+        /// it will use all gpus of your device by default
+        gpus: Vec<u8>,
+
+        /// Parallel worker per gpu
+        #[structopt(short, long, default_value = "1")]
+        worker: u8,
+    },
+}
+
+#[derive(StructOpt, Debug)]
+struct Info {
+    #[structopt(short, long)]
+    /// Your prover name
+    name: String,
+
+    #[structopt(short, long)]
+    /// The address you mine for
+    address: Address<Testnet2>,
+
+    #[structopt(short, long)]
+    /// Ip and port of the pool
+    pool_ip: SocketAddr,
+}
+
 #[tokio::main]
 async fn main() {
-    set_log();
-    let address = Address::from_str(
-        "aleo17jz68jzshl4l2d5cwr8zwpl9ntwpusxpslmmp97s4296tay3gsgsxevmne",
-    )
-    .unwrap();
-    let prover = Prover::new("test1".to_string(), address);
-    let _ = prover
-        .start_cpu(SocketAddr::from_str("14.29.101.215:4040").unwrap())
-        .await;
+    let opt = Opt::from_args();
+    set_log(opt.debug);
+
+    match opt.command {
+        Command::GenKey => todo!(),
+        Command::MineCpu {
+            info,
+            worker,
+            thread_per_worker,
+        } => {
+            let prover = Prover::new(info.name, info.address);
+            let _ = prover
+                .start_cpu( info.pool_ip, worker, thread_per_worker)
+                .await;
+        }
+        Command::MineGpu {..} => todo!(),
+    }
 
     future::pending().await
 }
 
-fn set_log() {
-    let filter =
-        EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into());
+fn set_log(debug: bool) {
+    let level = if debug {
+        tracing::Level::DEBUG
+    } else {
+        tracing::Level::INFO
+    };
+    let filter = EnvFilter::from_default_env().add_directive(level.into());
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(filter)
         .finish();

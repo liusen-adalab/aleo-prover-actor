@@ -41,12 +41,25 @@ impl Prover {
         }
     }
 
-    pub async fn start_cpu(mut self, pool_ip: SocketAddr) -> Result<ProverHandler> {
+    pub async fn start_cpu(
+        mut self,
+        pool_ip: SocketAddr,
+        worker: u8,
+        thread_per_worker: u8,
+    ) -> Result<ProverHandler> {
         let (tx, mut rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
         let client_router =
             Client::start(pool_ip, tx.clone(), self.name.clone(), self.address);
-        self.workers.push(Worker::new(tx.clone(), statistic_router.clone(), client_router.clone()));
+
+        for _ in 0..worker {
+            self.workers.push(Worker::start(
+                tx.clone(),
+                statistic_router.clone(),
+                client_router.clone(),
+                thread_per_worker,
+            ));
+        }
 
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
@@ -60,9 +73,7 @@ impl Prover {
                         break;
                     }
                     _ => {
-                        if let Err(err) =
-                            self.process_msg(msg, &statistic_router)
-                        {
+                        if let Err(err) = self.process_msg(msg, &statistic_router) {
                             error!("prover failed to process message: {err}");
                         }
                     }
@@ -117,7 +128,8 @@ impl Prover {
                 }
             }
             ProverMsg::SubmitResult(valid, msg) => {
-                if let Err(err) = statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg))
+                if let Err(err) =
+                    statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg))
                 {
                     error!("failed to send submit result to statistic mod: {err}");
                 }

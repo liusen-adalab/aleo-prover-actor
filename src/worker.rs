@@ -39,14 +39,15 @@ pub enum WorkerMsg {
 }
 
 impl Worker {
-    pub fn new(
+    pub fn start(
         prover_router: Sender<ProverMsg>,
         statistic_router: Sender<StatisticMsg>,
         client_router: Sender<ClientMsg>,
+        threads: u8
     ) -> Sender<WorkerMsg> {
         let (tx, mut rx) = mpsc::channel(100);
         let worker = Worker {
-            pool: ThreadPoolBuilder::new().num_threads(8).build().unwrap(),
+            pool: ThreadPoolBuilder::new().num_threads(threads as usize).build().unwrap(),
             terminator: Arc::new(AtomicBool::new(false)),
             ready: Arc::new(AtomicBool::new(true)),
             prover_router,
