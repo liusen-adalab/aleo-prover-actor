@@ -1,6 +1,7 @@
 use std::{future, net::SocketAddr};
 
 use aleo_prover_actor::prover::Prover;
+use aleo_prover_actor::create_key;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
@@ -70,13 +71,34 @@ struct Info {
     pool_ip: SocketAddr,
 }
 
+fn set_log(debug: bool) {
+    let level = if debug {
+        tracing::Level::DEBUG
+    } else {
+        tracing::Level::INFO
+    };
+    let filter = EnvFilter::from_default_env().add_directive(level.into());
+    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
+        .with_env_filter(filter)
+        .finish();
+    let file = std::fs::File::create("./pool.log").unwrap();
+    let file = tracing_subscriber::fmt::layer()
+        .with_writer(file)
+        .with_ansi(false);
+    tracing::subscriber::set_global_default(subscriber.with(file)).unwrap();
+}
+
+
 #[tokio::main]
 async fn main() {
     let opt = Opt::from_args();
     set_log(opt.debug);
 
     match opt.command {
-        Command::GenKey => todo!(),
+        Command::GenKey => {
+            println!("{}", create_key());
+            return;
+        },
         Command::MineCpu {
             info,
             worker,
@@ -94,21 +116,4 @@ async fn main() {
     }
 
     future::pending().await
-}
-
-fn set_log(debug: bool) {
-    let level = if debug {
-        tracing::Level::DEBUG
-    } else {
-        tracing::Level::INFO
-    };
-    let filter = EnvFilter::from_default_env().add_directive(level.into());
-    let subscriber = tracing_subscriber::fmt::Subscriber::builder()
-        .with_env_filter(filter)
-        .finish();
-    let file = std::fs::File::create("./pool.log").unwrap();
-    let file = tracing_subscriber::fmt::layer()
-        .with_writer(file)
-        .with_ansi(false);
-    tracing::subscriber::set_global_default(subscriber.with(file)).unwrap();
 }
