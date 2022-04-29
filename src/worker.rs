@@ -39,15 +39,37 @@ pub enum WorkerMsg {
 }
 
 impl Worker {
-    pub fn start(
+    pub fn start_cpu(
         prover_router: Sender<ProverMsg>,
         statistic_router: Sender<StatisticMsg>,
         client_router: Sender<ClientMsg>,
-        threads: u8
+        threads: u8,
+    ) -> Sender<WorkerMsg> {
+        Self::start(prover_router, statistic_router, client_router, -1, threads)
+    }
+
+    pub fn start_gpu(
+        prover_router: Sender<ProverMsg>,
+        statistic_router: Sender<StatisticMsg>,
+        client_router: Sender<ClientMsg>,
+        gpu_index: i16,
+    ) -> Sender<WorkerMsg> {
+        Self::start(prover_router, statistic_router, client_router, gpu_index, 2)
+    }
+
+    fn start(
+        prover_router: Sender<ProverMsg>,
+        statistic_router: Sender<StatisticMsg>,
+        client_router: Sender<ClientMsg>,
+        gpu_index: i16,
+        threads: u8,
     ) -> Sender<WorkerMsg> {
         let (tx, mut rx) = mpsc::channel(100);
         let worker = Worker {
-            pool: ThreadPoolBuilder::new().num_threads(threads as usize).build().unwrap(),
+            pool: ThreadPoolBuilder::new()
+                .num_threads(threads as usize)
+                .build()
+                .unwrap(),
             terminator: Arc::new(AtomicBool::new(false)),
             ready: Arc::new(AtomicBool::new(true)),
             prover_router,
@@ -58,7 +80,7 @@ impl Worker {
             while let Some(msg) = rx.recv().await {
                 match msg {
                     WorkerMsg::Notify(template, diff) => {
-                        worker.new_work(template, diff).await
+                        worker.new_work(template, diff, gpu_index).await
                     }
                     WorkerMsg::Exit(responder) => {
                         worker.wait_for_terminator();
@@ -85,6 +107,7 @@ impl Worker {
         &self,
         template: Arc<BlockTemplate<Testnet2>>,
         share_difficulty: u64,
+        gpu_index: i16,
     ) {
         let height = template.block_height();
         debug!("starting new work: {}", height);
@@ -104,7 +127,7 @@ impl Worker {
                     &template,
                     &terminator,
                     &mut thread_rng(),
-                    -1,
+                    gpu_index,
                 ) {
                     Ok(block_header) => {
                         let nonce = block_header.nonce();

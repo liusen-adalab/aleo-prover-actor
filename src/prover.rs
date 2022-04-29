@@ -1,12 +1,13 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{bail, Result};
+use rust_gpu_tools::Device;
 use snarkvm::{
     dpc::testnet2::Testnet2,
     prelude::{Address, BlockTemplate},
 };
 use tokio::sync::{
-    mpsc::{self, Sender},
+    mpsc::{self, Receiver, Sender},
     oneshot,
 };
 use tracing::{error, info};
@@ -47,20 +48,81 @@ impl Prover {
         worker: u8,
         thread_per_worker: u8,
     ) -> Result<ProverHandler> {
-        let (tx, mut rx) = mpsc::channel(100);
+        let (prover_router, rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
-        let client_router =
-            Client::start(pool_ip, tx.clone(), self.name.clone(), self.address);
-
+        let client_router = Client::start(
+            pool_ip,
+            prover_router.clone(),
+            self.name.clone(),
+            self.address,
+        );
         for _ in 0..worker {
-            self.workers.push(Worker::start(
-                tx.clone(),
+            self.workers.push(Worker::start_cpu(
+                prover_router.clone(),
                 statistic_router.clone(),
                 client_router.clone(),
                 thread_per_worker,
             ));
         }
 
+        self.serve(rx, client_router, statistic_router);
+
+        Ok(ProverHandler {
+            sender: prover_router.clone(),
+        })
+    }
+
+    pub async fn start_gpu(
+        mut self,
+        pool_ip: SocketAddr,
+        worker: u8,
+        gpus: Vec<u8>,
+    ) -> Result<ProverHandler> {
+        let gpus = if gpus.is_empty() {
+            let gpus = Device::all();
+            if gpus.is_empty() {
+                bail!("No available gpu in your device");
+            } else {
+                gpus.iter().enumerate().map(|(a, _)| a as u8).collect()
+            }
+        } else {
+            gpus
+        };
+
+        let (prover_router, rx) = mpsc::channel(100);
+        let statistic_router = Statistic::start();
+        let client_router = Client::start(
+            pool_ip,
+            prover_router.clone(),
+            self.name.clone(),
+            self.address,
+        );
+
+        for index in gpus {
+            for _ in 0..worker {
+                self.workers.push(Worker::start_gpu(
+                    prover_router.clone(),
+                    statistic_router.clone(),
+                    client_router.clone(),
+                    index as i16,
+                ));
+                info!("started worker on gpu-{}", index);
+            }
+        }
+
+        self.serve(rx, client_router, statistic_router);
+
+        Ok(ProverHandler {
+            sender: prover_router.clone(),
+        })
+    }
+
+    pub fn serve(
+        mut self,
+        mut rx: Receiver<ProverMsg>,
+        client_router: Sender<ClientMsg>,
+        statistic_router: Sender<StatisticMsg>,
+    ) {
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 match msg {
@@ -81,7 +143,31 @@ impl Prover {
             }
             info!("prover exited");
         });
-        Ok(ProverHandler { sender: tx.clone() })
+    }
+
+    fn process_msg(
+        &mut self,
+        msg: ProverMsg,
+        statistic_router: &Sender<StatisticMsg>,
+    ) -> Result<()> {
+        match msg {
+            ProverMsg::NewWork(template, difficulty) => {
+                let template = Arc::new(template);
+                for worker in self.workers.iter() {
+                    worker.try_send(WorkerMsg::Notify(template.clone(), difficulty))?;
+                }
+            }
+            ProverMsg::SubmitResult(valid, msg) => {
+                if let Err(err) =
+                    statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg))
+                {
+                    error!("failed to send submit result to statistic mod: {err}");
+                }
+            }
+            ProverMsg::Exit => {}
+        }
+
+        Ok(())
     }
 
     async fn exit(
@@ -108,35 +194,6 @@ impl Prover {
             .context("statistic")?;
         rx.await
             .context("failed to get exit response of statistic mod")?;
-        Ok(())
-    }
-
-    pub fn start_gpu() -> Result<()> {
-        todo!()
-    }
-
-    fn process_msg(
-        &mut self,
-        msg: ProverMsg,
-        statistic_router: &Sender<StatisticMsg>,
-    ) -> Result<()> {
-        match msg {
-            ProverMsg::NewWork(template, difficulty) => {
-                let template = Arc::new(template);
-                for worker in self.workers.iter() {
-                    worker.try_send(WorkerMsg::Notify(template.clone(), difficulty))?;
-                }
-            }
-            ProverMsg::SubmitResult(valid, msg) => {
-                if let Err(err) =
-                    statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg))
-                {
-                    error!("failed to send submit result to statistic mod: {err}");
-                }
-            }
-            ProverMsg::Exit => {}
-        }
-
         Ok(())
     }
 }

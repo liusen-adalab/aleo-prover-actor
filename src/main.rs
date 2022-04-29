@@ -51,7 +51,7 @@ enum Command {
 
         /// Parallel worker per gpu
         #[structopt(short, long, default_value = "1")]
-        worker: u8,
+        worker_per_gpu: u8,
     },
 }
 
@@ -84,10 +84,13 @@ async fn main() {
         } => {
             let prover = Prover::new(info.name, info.address);
             let _ = prover
-                .start_cpu( info.pool_ip, worker, thread_per_worker)
+                .start_cpu(info.pool_ip, worker, thread_per_worker)
                 .await;
         }
-        Command::MineGpu {..} => todo!(),
+        Command::MineGpu { info, gpus, worker_per_gpu: worker } => {
+            let prover = Prover::new(info.name, info.address);
+            let _ = prover.start_gpu(info.pool_ip, worker, gpus).await;
+        }
     }
 
     future::pending().await
