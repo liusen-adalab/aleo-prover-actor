@@ -48,12 +48,12 @@ impl Statistic {
                         }
                     }
                     StatisticMsg::SubmitResult(is_valid, msg) => {
-                        let valid = self.submit_valid_count;
-                        let invalid = self.submit_invalid_count;
                         let msg =
                             msg.map(|msg| ": ".to_string() + &msg).unwrap_or("".into());
                         if is_valid {
                             self.submit_valid_count += 1;
+                            let valid = self.submit_valid_count;
+                            let invalid = self.submit_invalid_count;
                             info!(
                                 "{}",
                                 Green.normal().paint(format!(
@@ -66,6 +66,8 @@ impl Statistic {
                             );
                         } else {
                             self.submit_invalid_count += 1;
+                            let valid = self.submit_valid_count;
+                            let invalid = self.submit_invalid_count;
                             info!(
                                 "{}",
                                 Red.normal().paint(format!(
