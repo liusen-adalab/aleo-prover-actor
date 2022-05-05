@@ -1,7 +1,6 @@
 use std::{net::SocketAddr, sync::Arc};
 
-use anyhow::{bail, Result};
-use rust_gpu_tools::Device;
+use anyhow::Result;
 use snarkvm::{
     dpc::testnet2::Testnet2,
     prelude::{Address, BlockTemplate},
@@ -19,6 +18,8 @@ use crate::{
 };
 use anyhow::Context;
 use tokio::task;
+#[cfg(feature = "cuda")]
+use {anyhow::bail, rust_gpu_tools::Device};
 
 pub struct Prover {
     workers: Vec<Sender<WorkerMsg>>,
@@ -72,6 +73,7 @@ impl Prover {
         })
     }
 
+    #[cfg(feature = "cuda")]
     pub async fn start_gpu(
         mut self,
         pool_ip: SocketAddr,
@@ -79,9 +81,9 @@ impl Prover {
         gpus: Vec<u8>,
     ) -> Result<ProverHandler> {
         let all = Device::all();
-         if all.is_empty() {
+        if all.is_empty() {
             bail!("No available gpu in your device");
-        } 
+        }
         let gpus = if gpus.is_empty() {
             all.iter().enumerate().map(|(a, _)| a as u8).collect()
         } else {

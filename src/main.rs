@@ -31,14 +31,15 @@ enum Command {
         #[structopt(short, long, default_value = "1")]
         worker: u8,
 
-        ///
         /// Number of threads that every worker will use
-        /// It is recommended to make
+        /// It is recommended to ensure
         /// `worker * thread-per-worker` < `amount of threads of your device`
         #[structopt(short, long, default_value = "8")]
         #[structopt(verbatim_doc_comment)]
         thread_per_worker: u8,
     },
+    
+    #[cfg(feature = "cuda")]
     /// mine with gpu
     MineGpu {
         #[structopt(flatten)]
@@ -47,7 +48,7 @@ enum Command {
         #[structopt(short, long)]
         #[structopt(verbatim_doc_comment)]
         /// example: --gpus 0 2 4
-        /// it will use the gpu with index of 0, 2, 4, if they exist
+        /// it will use the gpu with index of 0, 2, 4, if they exist.
         /// it will use all gpus of your device by default
         gpus: Vec<u8>,
 
@@ -68,7 +69,7 @@ struct Info {
     address: Address<Testnet2>,
 
     #[structopt(short, long)]
-    /// Ip and port of the pool
+    /// Ip:port of the pool
     pool_ip: SocketAddr,
 }
 
@@ -82,7 +83,7 @@ fn set_log(debug: bool) {
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(filter)
         .finish();
-    let file = std::fs::File::create("./pool.log").unwrap();
+    let file = std::fs::File::create("./prover.log").unwrap();
     let file = tracing_subscriber::fmt::layer()
         .with_writer(file)
         .with_ansi(false);
@@ -109,6 +110,7 @@ async fn main() -> Result<()> {
                 .start_cpu(info.pool_ip, worker, thread_per_worker)
                 .await;
         }
+        #[cfg(feature = "cuda")]
         Command::MineGpu {
             info,
             gpus,

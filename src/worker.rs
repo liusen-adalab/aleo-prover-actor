@@ -48,6 +48,7 @@ impl Worker {
         Self::start(prover_router, statistic_router, client_router, -1, threads)
     }
 
+    #[cfg(feature = "cuda")]
     pub fn start_gpu(
         prover_router: Sender<ProverMsg>,
         statistic_router: Sender<StatisticMsg>,
