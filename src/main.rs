@@ -6,6 +6,7 @@ use anyhow::Result;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
+use tokio::runtime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
@@ -38,7 +39,7 @@ enum Command {
         #[structopt(verbatim_doc_comment)]
         thread_per_worker: u8,
     },
-    
+
     #[cfg(feature = "cuda")]
     /// mine with gpu
     MineGpu {
@@ -90,37 +91,45 @@ fn set_log(debug: bool) {
     tracing::subscriber::set_global_default(subscriber.with(file)).unwrap();
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let opt = Opt::from_args();
     set_log(opt.debug);
 
-    match opt.command {
-        Command::GenKey => {
-            println!("{}", create_key());
-            return Ok(());
-        }
-        Command::MineCpu {
-            info,
-            worker,
-            thread_per_worker,
-        } => {
-            let prover = Prover::new(info.name, info.address);
-            let _ = prover
-                .start_cpu(info.pool_ip, worker, thread_per_worker)
-                .await;
-        }
-        #[cfg(feature = "cuda")]
-        Command::MineGpu {
-            info,
-            gpus,
-            worker_per_gpu: worker,
-        } => {
-            let prover = Prover::new(info.name, info.address);
-            let _ = prover.start_gpu(info.pool_ip, worker, gpus).await?;
-        }
-    }
+    let rt = runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(4)
+        .build()
+        .unwrap();
 
-    let () =future::pending().await;
+    rt.block_on(async move {
+        match opt.command {
+            Command::GenKey => {
+                println!("{}", create_key());
+                return;
+            }
+            Command::MineCpu {
+                info,
+                worker,
+                thread_per_worker,
+            } => {
+                let prover = Prover::new(info.name, info.address);
+                let _ = prover
+                    .start_cpu(info.pool_ip, worker, thread_per_worker)
+                    .await;
+            }
+            #[cfg(feature = "cuda")]
+            Command::MineGpu {
+                info,
+                gpus,
+                worker_per_gpu: worker,
+            } => {
+                let prover = Prover::new(info.name, info.address);
+                let _ = prover.start_gpu(info.pool_ip, worker, gpus).await?;
+            }
+        }
+
+        let () = future::pending().await;
+    });
+
     Ok(())
 }
