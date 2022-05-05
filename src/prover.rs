@@ -65,9 +65,10 @@ impl Prover {
                 thread_per_worker,
             ));
         }
+        info!("created {} workers with {} threads each for the prover", self.workers.len(), thread_per_worker);
 
         self.serve(rx, client_router, statistic_router);
-
+        info!("prover-cpu started");
         Ok(ProverHandler {
             sender: prover_router.clone(),
         })

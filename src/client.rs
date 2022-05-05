@@ -61,7 +61,7 @@ impl Client {
                     result = framed.next() => match result {
                         Some(Ok(message)) => {
                             if Self::stream_handle(message, &prover_router).await.is_err(){
-                                info!("error process message, breaking");
+                                error!("error process message, breaking");
                                 // todo: maybe it is better to exit process
                                 break ;
                             }
@@ -77,6 +77,7 @@ impl Client {
                 }
             }
         });
+        info!("client started");
         router
     }
 
@@ -152,6 +153,7 @@ impl Client {
                 debug!("Sent share result to prover");
             }
             PoolMessage::Exit => {
+                // TODO: do something before exit, or return message rather than exit the process
                 process::exit(0);
             }
             _ => {

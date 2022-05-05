@@ -2,7 +2,7 @@ use std::{future, net::SocketAddr};
 
 use aleo_prover_actor::create_key;
 use aleo_prover_actor::prover::Prover;
-use anyhow::Result;
+use anyhow::{Context, Result};
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
@@ -74,7 +74,7 @@ struct Info {
     pool_ip: SocketAddr,
 }
 
-fn set_log(debug: bool) {
+fn set_log(debug: bool) -> Result<()> {
     let level = if debug {
         tracing::Level::DEBUG
     } else {
@@ -84,22 +84,24 @@ fn set_log(debug: bool) {
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(filter)
         .finish();
-    let file = std::fs::File::create("./prover.log").unwrap();
+    let file =
+        std::fs::File::create("./prover.log").context("failed to create log file")?;
     let file = tracing_subscriber::fmt::layer()
         .with_writer(file)
         .with_ansi(false);
-    tracing::subscriber::set_global_default(subscriber.with(file)).unwrap();
+    tracing::subscriber::set_global_default(subscriber.with(file))?;
+    Ok(())
 }
 
 fn main() -> Result<()> {
     let opt = Opt::from_args();
-    set_log(opt.debug);
+    set_log(opt.debug).context("failed to initiate log")?;
 
     let rt = runtime::Builder::new_multi_thread()
         .enable_all()
         .worker_threads(4)
         .build()
-        .unwrap();
+        .context("failed to initiate tokio runtime")?;
 
     rt.block_on(async move {
         match opt.command {

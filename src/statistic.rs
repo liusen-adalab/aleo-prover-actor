@@ -31,6 +31,7 @@ impl Statistic {
         let statistic = Statistic::default();
         statistic.serve(rx);
         Self::period_report(tx.clone());
+        info!("statistic mod started");
         tx
     }
 
