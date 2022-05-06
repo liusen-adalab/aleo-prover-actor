@@ -22,14 +22,11 @@ structopt = "0.3"
 rust-gpu-tools = {version = "0.6.0", optional = true }
 
 [dependencies.snarkvm]
-# path = "../snarkVM"
-git = "https://github.com/HarukaMa/snarkVM.git"
-rev = "cfb283e3"
-# features = ["cuda"]
+git = "https://github.com/liusen-adalab/snarkVM.git"
+rev = "e872e7c8819f9cfc81317f5c7e76728726507ab4"
 
-[dependencies.pool-prover-message]
-git = "https://gitee.com/liusen_n/pool-message.git"
-branch = "master"
+[dependencies.aleo-mine-protocol]
+git = "https://github.com/liusen-adalab/aleo-mine-protocol.git"
 
 [features]
 cuda = ["snarkvm/cuda", "rust-gpu-tools"]

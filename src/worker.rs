@@ -6,7 +6,7 @@ use std::{
     },
 };
 
-use pool_prover_message::PoolMessage;
+use aleo_mine_protocol::Message as PoolMessage;
 use rand::thread_rng;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use snarkvm::{

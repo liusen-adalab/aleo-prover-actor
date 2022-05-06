@@ -1,10 +1,9 @@
 use std::net::SocketAddr;
-use std::process;
 use std::time::Duration;
 
 use anyhow::{bail, Result};
 use futures_util::sink::SinkExt;
-use pool_prover_message::PoolMessage;
+use aleo_mine_protocol::Message as PoolMessage;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use tokio::sync::mpsc::{self, Sender};
@@ -151,10 +150,6 @@ impl Client {
                     .await
                     .context("")?;
                 debug!("Sent share result to prover");
-            }
-            PoolMessage::Exit => {
-                // TODO: do something before exit, or return message rather than exit the process
-                process::exit(0);
             }
             _ => {
                 debug!("Unhandled message: {}", message.name());
