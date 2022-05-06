@@ -43,20 +43,10 @@ impl Prover {
         }
     }
 
-    pub async fn start_cpu(
-        mut self,
-        pool_ip: SocketAddr,
-        worker: u8,
-        thread_per_worker: u8,
-    ) -> Result<ProverHandler> {
+    pub async fn start_cpu(mut self, pool_ip: SocketAddr, worker: u8, thread_per_worker: u8) -> Result<ProverHandler> {
         let (prover_router, rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
-        let client_router = Client::start(
-            pool_ip,
-            prover_router.clone(),
-            self.name.clone(),
-            self.address,
-        );
+        let client_router = Client::start(pool_ip, prover_router.clone(), self.name.clone(), self.address);
         for _ in 0..worker {
             self.workers.push(Worker::start_cpu(
                 prover_router.clone(),
@@ -65,7 +55,11 @@ impl Prover {
                 thread_per_worker,
             ));
         }
-        info!("created {} workers with {} threads each for the prover", self.workers.len(), thread_per_worker);
+        info!(
+            "created {} workers with {} threads each for the prover",
+            self.workers.len(),
+            thread_per_worker
+        );
 
         self.serve(rx, client_router, statistic_router);
         info!("prover-cpu started");
@@ -75,12 +69,7 @@ impl Prover {
     }
 
     #[cfg(feature = "cuda")]
-    pub async fn start_gpu(
-        mut self,
-        pool_ip: SocketAddr,
-        worker: u8,
-        gpus: Vec<u8>,
-    ) -> Result<ProverHandler> {
+    pub async fn start_gpu(mut self, pool_ip: SocketAddr, worker: u8, gpus: Vec<u8>) -> Result<ProverHandler> {
         let all = Device::all();
         if all.is_empty() {
             bail!("No available gpu in your device");
@@ -93,12 +82,7 @@ impl Prover {
 
         let (prover_router, rx) = mpsc::channel(100);
         let statistic_router = Statistic::start();
-        let client_router = Client::start(
-            pool_ip,
-            prover_router.clone(),
-            self.name.clone(),
-            self.address,
-        );
+        let client_router = Client::start(pool_ip, prover_router.clone(), self.name.clone(), self.address);
 
         for index in gpus {
             for _ in 0..worker {
@@ -129,9 +113,7 @@ impl Prover {
             while let Some(msg) = rx.recv().await {
                 match msg {
                     ProverMsg::Exit => {
-                        if let Err(err) =
-                            self.exit(&client_router, &statistic_router).await
-                        {
+                        if let Err(err) = self.exit(&client_router, &statistic_router).await {
                             error!("failed to exit: {err}");
                         }
                         break;
@@ -147,11 +129,7 @@ impl Prover {
         });
     }
 
-    fn process_msg(
-        &mut self,
-        msg: ProverMsg,
-        statistic_router: &Sender<StatisticMsg>,
-    ) -> Result<()> {
+    fn process_msg(&mut self, msg: ProverMsg, statistic_router: &Sender<StatisticMsg>) -> Result<()> {
         match msg {
             ProverMsg::NewWork(template, difficulty) => {
                 let template = Arc::new(template);
@@ -160,9 +138,7 @@ impl Prover {
                 }
             }
             ProverMsg::SubmitResult(valid, msg) => {
-                if let Err(err) =
-                    statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg))
-                {
+                if let Err(err) = statistic_router.try_send(StatisticMsg::SubmitResult(valid, msg)) {
                     error!("failed to send submit result to statistic mod: {err}");
                 }
             }
@@ -172,16 +148,9 @@ impl Prover {
         Ok(())
     }
 
-    async fn exit(
-        &mut self,
-        client_router: &Sender<ClientMsg>,
-        statistic_router: &Sender<StatisticMsg>,
-    ) -> Result<()> {
+    async fn exit(&mut self, client_router: &Sender<ClientMsg>, statistic_router: &Sender<StatisticMsg>) -> Result<()> {
         let (tx, rx) = oneshot::channel();
-        client_router
-            .send(ClientMsg::Exit(tx))
-            .await
-            .context("client")?;
+        client_router.send(ClientMsg::Exit(tx)).await.context("client")?;
         rx.await.context("failed to get exit response of client")?;
 
         for worker in self.workers.iter() {
@@ -194,8 +163,7 @@ impl Prover {
             .send(StatisticMsg::Exit(tx))
             .await
             .context("statistic")?;
-        rx.await
-            .context("failed to get exit response of statistic mod")?;
+        rx.await.context("failed to get exit response of statistic mod")?;
         Ok(())
     }
 }

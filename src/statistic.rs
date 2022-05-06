@@ -37,7 +37,7 @@ impl Statistic {
 
     fn serve(mut self, mut rx: Receiver<StatisticMsg>) {
         task::spawn(async move {
-            let mut log = VecDeque::from(vec![0u32; 6]);
+            let mut log = VecDeque::from(vec![0u32; 60]);
             while let Some(msg) = rx.recv().await {
                 match msg {
                     StatisticMsg::Prove(valid, weight) => {
@@ -49,8 +49,7 @@ impl Statistic {
                         }
                     }
                     StatisticMsg::SubmitResult(is_valid, msg) => {
-                        let msg =
-                            msg.map(|msg| ": ".to_string() + &msg).unwrap_or("".into());
+                        let msg = msg.map(|msg| ": ".to_string() + &msg).unwrap_or("".into());
                         if is_valid {
                             self.submit_valid_count += 1;
                             let valid = self.submit_valid_count;
@@ -81,9 +80,7 @@ impl Statistic {
                             );
                         }
                     }
-                    StatisticMsg::Exit(responder) => {
-                        responder.send(()).expect("failed to respond exit msg")
-                    }
+                    StatisticMsg::Exit(responder) => responder.send(()).expect("failed to respond exit msg"),
                     StatisticMsg::Report => {
                         let m1 = *log.get(0).unwrap_or(&0);
                         let m5 = *log.get(4).unwrap_or(&0);
@@ -97,11 +94,11 @@ impl Statistic {
                             Cyan.normal().paint(format!(
                                 "Total proofs: {} (1m: {} p/s, 5m: {} p/s, 15m: {} p/s, 30m: {} p/s, 60m: {} p/s)",
                                 self.prove_count,
-                                self.calculate_proof_rate( m1, Duration::from_secs(60)),
-                                self.calculate_proof_rate( m5, Duration::from_secs(60 * 5)),
-                                self.calculate_proof_rate( m15, Duration::from_secs(60 * 15)),
-                                self.calculate_proof_rate( m30, Duration::from_secs(60 * 30)),
-                                self.calculate_proof_rate( m60, Duration::from_secs(60 * 60)),
+                                self.calculate_proof_rate(m1, Duration::from_secs(60)),
+                                self.calculate_proof_rate(m5, Duration::from_secs(60 * 5)),
+                                self.calculate_proof_rate(m15, Duration::from_secs(60 * 15)),
+                                self.calculate_proof_rate(m30, Duration::from_secs(60 * 30)),
+                                self.calculate_proof_rate(m60, Duration::from_secs(60 * 60)),
                             ))
                         );
                     }

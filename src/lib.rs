@@ -1,12 +1,11 @@
-use snarkvm::{prelude::Account, dpc::testnet2::Testnet2};
+use snarkvm::{dpc::testnet2::Testnet2, prelude::Account};
 
-pub mod prover;
-mod worker;
 mod client;
+pub mod prover;
 mod statistic;
+mod worker;
 
-
-pub fn create_key() -> String{
+pub fn create_key() -> String {
     let account = Account::<Testnet2>::new(&mut rand::thread_rng());
     let private_key = format!("Private key:  {}\n", account.private_key());
     let view_key = format!("   View key:  {}\n", account.view_key());

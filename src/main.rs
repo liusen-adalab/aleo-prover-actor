@@ -84,11 +84,8 @@ fn set_log(debug: bool) -> Result<()> {
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(filter)
         .finish();
-    let file =
-        std::fs::File::create("./prover.log").context("failed to create log file")?;
-    let file = tracing_subscriber::fmt::layer()
-        .with_writer(file)
-        .with_ansi(false);
+    let file = std::fs::File::create("./prover.log").context("failed to create log file")?;
+    let file = tracing_subscriber::fmt::layer().with_writer(file).with_ansi(false);
     tracing::subscriber::set_global_default(subscriber.with(file))?;
     Ok(())
 }
@@ -115,9 +112,7 @@ fn main() -> Result<()> {
                 thread_per_worker,
             } => {
                 let prover = Prover::new(info.name, info.address);
-                let _ = prover
-                    .start_cpu(info.pool_ip, worker, thread_per_worker)
-                    .await;
+                let _ = prover.start_cpu(info.pool_ip, worker, thread_per_worker).await;
             }
             #[cfg(feature = "cuda")]
             Command::MineGpu {

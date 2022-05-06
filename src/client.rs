@@ -1,9 +1,9 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 
+use aleo_mine_protocol::Message as PoolMessage;
 use anyhow::{bail, Result};
 use futures_util::sink::SinkExt;
-use aleo_mine_protocol::Message as PoolMessage;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use tokio::sync::mpsc::{self, Sender};
@@ -107,13 +107,8 @@ impl Client {
         }
     }
 
-    async fn authorize(
-        framed: &mut Framed<TcpStream, PoolMessage>,
-        address: Address<Testnet2>,
-        name: String,
-    ) {
-        let authorization =
-            PoolMessage::Authorize(address, name, *PoolMessage::version());
+    async fn authorize(framed: &mut Framed<TcpStream, PoolMessage>, address: Address<Testnet2>, name: String) {
+        let authorization = PoolMessage::Authorize(address, name, *PoolMessage::version());
         if let Err(e) = framed.send(authorization).await {
             error!("Error sending authorization: {}", e);
         } else {
@@ -121,20 +116,14 @@ impl Client {
         }
     }
 
-    async fn stream_handle(
-        message: PoolMessage,
-        prover_sender: &Sender<ProverMsg>,
-    ) -> Result<()> {
+    async fn stream_handle(message: PoolMessage, prover_sender: &Sender<ProverMsg>) -> Result<()> {
         debug!("Received {} from server", message.name());
         match message {
             PoolMessage::AuthorizeResult(result, message) => {
                 if result {
                     debug!("Authorized");
                 } else {
-                    bail!(
-                        "Authorization failed: {}",
-                        message.unwrap_or("".to_string())
-                    );
+                    bail!("Authorization failed: {}", message.unwrap_or("".to_string()));
                 }
             }
             PoolMessage::Notify(block_template, share_difficulty) => {

@@ -67,10 +67,7 @@ impl Worker {
     ) -> Sender<WorkerMsg> {
         let (tx, mut rx) = mpsc::channel(100);
         let worker = Worker {
-            pool: ThreadPoolBuilder::new()
-                .num_threads(threads as usize)
-                .build()
-                .unwrap(),
+            pool: ThreadPoolBuilder::new().num_threads(threads as usize).build().unwrap(),
             terminator: Arc::new(AtomicBool::new(false)),
             ready: Arc::new(AtomicBool::new(true)),
             prover_router,
@@ -80,9 +77,7 @@ impl Worker {
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 match msg {
-                    WorkerMsg::Notify(template, diff) => {
-                        worker.new_work(template, diff, gpu_index).await
-                    }
+                    WorkerMsg::Notify(template, diff) => worker.new_work(template, diff, gpu_index).await,
                     WorkerMsg::Exit(responder) => {
                         worker.wait_for_terminator();
                         responder.send(()).expect("failed response exit msg");
@@ -104,12 +99,7 @@ impl Worker {
         debug!("the pool is ready to go");
     }
 
-    async fn new_work(
-        &self,
-        template: Arc<BlockTemplate<Testnet2>>,
-        share_difficulty: u64,
-        gpu_index: i16,
-    ) {
+    async fn new_work(&self, template: Arc<BlockTemplate<Testnet2>>, share_difficulty: u64, gpu_index: i16) {
         let height = template.block_height();
         debug!("starting new work: {}", height);
         self.wait_for_terminator();
@@ -124,27 +114,18 @@ impl Worker {
             // ensure new work starts before returning
             tx.send(()).unwrap();
             while !terminator.load(Ordering::SeqCst) {
-                match BlockHeader::mine_once_unchecked(
-                    &template,
-                    &terminator,
-                    &mut thread_rng(),
-                    gpu_index,
-                ) {
+                match BlockHeader::mine_once_unchecked(&template, &terminator, &mut thread_rng(), gpu_index) {
                     Ok(block_header) => {
                         let nonce = block_header.nonce();
                         let proof = block_header.proof().clone();
-                        let proof_difficulty =
-                            proof.to_proof_difficulty().unwrap_or(u64::MAX);
+                        let proof_difficulty = proof.to_proof_difficulty().unwrap_or(u64::MAX);
                         if proof_difficulty > share_difficulty {
                             debug!(
                                 "Share difficulty target not met: {} > {}",
                                 proof_difficulty, share_difficulty
                             );
-                            if let Err(err) =
-                                statistic_router.try_send(StatisticMsg::Prove(
-                                    false,
-                                    (u64::MAX / share_difficulty) as u32,
-                                ))
+                            if let Err(err) = statistic_router
+                                .try_send(StatisticMsg::Prove(false, (u64::MAX / share_difficulty) as u32))
                             {
                                 error!("failed to report prove to statistic: {err}");
                             }
@@ -155,15 +136,14 @@ impl Worker {
                             height,
                             u64::MAX / proof_difficulty
                         );
-                        if let Err(err) = client_router.try_send(ClientMsg::PoolMessage(
-                            PoolMessage::Submit(height, nonce, proof),
-                        )) {
+                        if let Err(err) =
+                            client_router.try_send(ClientMsg::PoolMessage(PoolMessage::Submit(height, nonce, proof)))
+                        {
                             error!("failed to send submit to client router: {err}");
                         }
-                        if let Err(err) = statistic_router.try_send(StatisticMsg::Prove(
-                            true,
-                            (u64::MAX / share_difficulty) as u32,
-                        )) {
+                        if let Err(err) =
+                            statistic_router.try_send(StatisticMsg::Prove(true, (u64::MAX / share_difficulty) as u32))
+                        {
                             error!("failed to report prove to statistic: {err}");
                         }
                     }
