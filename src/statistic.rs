@@ -48,7 +48,7 @@ impl Statistic {
 
     fn serve(mut self, mut rx: Receiver<StatisticMsg>) {
         task::spawn(async move {
-            let mut log = VecDeque::from(vec![0u32; 60]);
+            let mut log = VecDeque::with_capacity(60);
             while let Some(msg) = rx.recv().await {
                 match msg {
                     StatisticMsg::Prove(valid, weight) => {
@@ -157,7 +157,10 @@ mod test {
 
     #[test]
     fn test_vecdeque() {
-        let mut log = VecDeque::from(vec![0; 60]);
+        let log = VecDeque::from(vec![0;60]);
+        assert!(log.get(0).is_some());
+        let mut log = VecDeque::with_capacity(60);
+        assert!(log.get(0).is_none());
         let cap = log.capacity();
         for i in 1..=cap {
             log.push_front(i);
