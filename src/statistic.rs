@@ -82,11 +82,11 @@ impl Statistic {
                     }
                     StatisticMsg::Exit(responder) => responder.send(()).expect("failed to respond exit msg"),
                     StatisticMsg::Report => {
-                        let m1 = *log.get(0).unwrap_or(&0);
-                        let m5 = *log.get(4).unwrap_or(&0);
-                        let m15 = *log.get(9).unwrap_or(&0);
-                        let m30 = *log.get(29).unwrap_or(&0);
-                        let m60 = *log.get(59).unwrap_or(&0);
+                        let m1 = log.get(0).map(|a| *a);
+                        let m5 = log.get(4).map(|a| *a);
+                        let m15 = log.get(9).map(|a| *a);
+                        let m30 = log.get(29).map(|a| *a);
+                        let m60 = log.get(59).map(|a| *a);
                         log.push_front(self.prove_count);
 
                         info!(
@@ -118,9 +118,34 @@ impl Statistic {
         });
     }
 
-    fn calculate_proof_rate(&self, past: u32, interval: Duration) -> String {
-        let interval = interval.as_secs_f64();
-        let rate = (self.prove_count - past) as f64 / interval;
-        format!("{:.2}", rate)
+    fn calculate_proof_rate(&self, past: Option<u32>, interval: Duration) -> String {
+        match past {
+            Some(past) => {
+                let interval = interval.as_secs_f64();
+                let rate = (self.prove_count - past) as f64 / interval;
+                format!("{:.2}", rate)
+            }
+            None => {
+                format!("---")
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::VecDeque;
+
+    #[test]
+    fn test_vecdeque() {
+        let mut log = VecDeque::from(vec![0; 60]);
+        let cap = log.capacity();
+        for i in 1..=cap {
+            log.push_front(i);
+        }
+        assert_eq!(log.get(0).unwrap(), &cap);
+        assert_eq!(log.get(cap - 1).unwrap(), &1);
+        log.push_front(1);
+        assert_eq!(log.get(cap - 1).unwrap(), &2);
     }
 }
