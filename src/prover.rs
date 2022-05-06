@@ -45,8 +45,8 @@ impl Prover {
 
     pub async fn start_cpu(mut self, pool_ip: SocketAddr, worker: u8, thread_per_worker: u8) -> Result<ProverHandler> {
         let (prover_router, rx) = mpsc::channel(100);
-        let statistic_router = Statistic::start();
         let client_router = Client::start(pool_ip, prover_router.clone(), self.name.clone(), self.address);
+        let statistic_router = Statistic::start(client_router.clone());
         for _ in 0..worker {
             self.workers.push(Worker::start_cpu(
                 prover_router.clone(),

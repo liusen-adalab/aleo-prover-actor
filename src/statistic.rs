@@ -1,13 +1,15 @@
 use std::collections::VecDeque;
 use std::time::Duration;
 
+use aleo_mine_protocol::Message;
 use ansi_term::Color::{Cyan, Green, Red};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::task;
 use tracing::{error, info};
 
-#[derive(Default)]
+use crate::client::ClientMsg;
+
 pub struct Statistic {
     prove_weight_valid: u32,
     prove_weight_invalid: u32,
@@ -15,6 +17,8 @@ pub struct Statistic {
 
     submit_valid_count: u32,
     submit_invalid_count: u32,
+
+    client_router: Sender<ClientMsg>,
 }
 
 #[derive(Debug)]
@@ -26,9 +30,16 @@ pub enum StatisticMsg {
 }
 
 impl Statistic {
-    pub fn start() -> Sender<StatisticMsg> {
+    pub fn start(client_router: Sender<ClientMsg>) -> Sender<StatisticMsg> {
         let (tx, rx) = mpsc::channel(100);
-        let statistic = Statistic::default();
+        let statistic = Statistic {
+            prove_weight_valid: Default::default(),
+            prove_weight_invalid: Default::default(),
+            prove_count: Default::default(),
+            submit_valid_count: Default::default(),
+            submit_invalid_count: Default::default(),
+            client_router,
+        };
         statistic.serve(rx);
         Self::period_report(tx.clone());
         info!("statistic mod started");
@@ -88,6 +99,14 @@ impl Statistic {
                         let m30 = log.get(29).map(|a| *a);
                         let m60 = log.get(59).map(|a| *a);
                         log.push_front(self.prove_count);
+
+                        let count_1m = self.prove_count - *m1.as_ref().unwrap_or(&0);
+                        if let Err(err) = self
+                            .client_router
+                            .try_send(ClientMsg::PoolMessage(Message::ProvePerMinute(count_1m as u64)))
+                        {
+                            error!("filed to send prove num to client router: {err}");
+                        }
 
                         info!(
                             "{}",
