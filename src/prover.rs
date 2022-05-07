@@ -4,7 +4,7 @@ use std::{
     sync::{
         atomic::{AtomicBool, Ordering},
         Arc, RwLock,
-    },
+    }, str::FromStr,
 };
 
 use anyhow::{ensure, Result};
@@ -213,8 +213,9 @@ impl ProverHandler {
         worker: u8,
         thread_per_worker: u8,
         name: String,
-        address: Address<Testnet2>,
+        address: impl ToString,
     ) -> Result<()> {
+        let address = Address::from_str(&address.to_string()).context("invalid aleo address")?;
         ensure!(!self.running(), "prover is already running");
         self.running.store(true, Ordering::SeqCst);
 
