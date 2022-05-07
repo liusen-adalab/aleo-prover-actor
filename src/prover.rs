@@ -263,14 +263,15 @@ fn detect_gpu() -> bool {
         Command::new("cmd")
             .arg("/C")
             .arg("nvcc --help")
-            .status()
+            .output()
             .expect("failed to execute process")
     } else {
         Command::new("sh")
             .arg("-c")
             .arg("nvcc --help")
-            .status()
+            .output()
             .expect("failed to execute process")
     };
-    output.code().unwrap_or(1) == 0
+
+    output.status.success()
 }
