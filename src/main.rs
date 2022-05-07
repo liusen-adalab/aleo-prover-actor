@@ -123,15 +123,22 @@ fn main() -> Result<()> {
                 {
                     error!("failed to start prover: {err}");
                 }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+                prover.stop().await;
             }
             #[cfg(feature = "cuda")]
             Command::MineGpu {
                 info,
                 gpus,
-                worker_per_gpu: worker,
+                worker_per_gpu,
             } => {
-                let prover = Prover::new(info.name, info.address);
-                let _ = prover.start_gpu(info.pool_ip, worker, gpus).await?;
+                let prover = ProverHandler::new();
+                if let Err(err) = prover
+                    .start_gpu(worker_per_gpu, gpus, info.address, info.name, info.pool_ip)
+                    .await
+                {
+                    error!("failed to start prover: {err}");
+                }
             }
         }
 
