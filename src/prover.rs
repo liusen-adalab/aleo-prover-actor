@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::{ensure, Result};
-use log::{error, info, debug};
+use log::{error, info, debug, warn};
 use snarkvm::{
     dpc::testnet2::Testnet2,
     prelude::{Address, BlockTemplate},
@@ -36,7 +36,7 @@ pub struct Prover {
 pub enum ProverMsg {
     NewWork(BlockTemplate<Testnet2>, u64),
     SubmitResult(bool, Option<String>),
-    Exit,
+    Exit(oneshot::Sender<()>),
 }
 
 impl Prover {
@@ -125,12 +125,13 @@ impl Prover {
         task::spawn(async move {
             while let Some(msg) = rx.recv().await {
                 match msg {
-                    ProverMsg::Exit => {
+                    ProverMsg::Exit(responder) => {
                         if let Err(err) = self.exit(&client_router, &statistic_router).await {
                             error!("failed to exit: {err}");
                             // grace exit failed, force exit
                             process::exit(1);
                         }
+                        responder.send(()).unwrap();
                         break;
                     }
                     _ => {
@@ -157,7 +158,9 @@ impl Prover {
                     error!("failed to send submit result to statistic mod: {err}");
                 }
             }
-            ProverMsg::Exit => {}
+            _ => {
+                warn!("unexpected msg");
+            }
         }
 
         Ok(())
@@ -201,9 +204,13 @@ impl ProverHandler {
     pub async fn stop(&self) {
         if self.running() {
             let sender = self.prover_router.read().await;
-            if let Err(err) = sender.send(ProverMsg::Exit).await {
+            let (tx, rx) = oneshot::channel();
+            if let Err(err) = sender.send(ProverMsg::Exit(tx)).await {
                 error!("failed to stop prover: {err}");
             }
+            rx.await.unwrap();
+            debug!("prover exited");
+            self.running.store(false, Ordering::SeqCst);
         }
     }
 
