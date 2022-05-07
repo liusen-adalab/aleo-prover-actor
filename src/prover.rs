@@ -1,6 +1,14 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    process,
+    sync::{
+        atomic::{AtomicBool, Ordering},
+        Arc, RwLock,
+    },
+};
 
-use anyhow::Result;
+use anyhow::{ensure, Result};
+use log::{error, info};
 use snarkvm::{
     dpc::testnet2::Testnet2,
     prelude::{Address, BlockTemplate},
@@ -9,7 +17,6 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     oneshot,
 };
-use log::{error, info};
 
 use crate::{
     client::{Client, ClientMsg},
@@ -23,8 +30,6 @@ use {anyhow::bail, rust_gpu_tools::Device};
 
 pub struct Prover {
     workers: Vec<Sender<WorkerMsg>>,
-    name: String,
-    address: Address<Testnet2>,
 }
 
 #[derive(Debug)]
@@ -35,17 +40,20 @@ pub enum ProverMsg {
 }
 
 impl Prover {
-    pub fn new(name: String, address: Address<Testnet2>) -> Prover {
-        Prover {
-            workers: vec![],
-            name,
-            address,
-        }
+    fn new() -> Prover {
+        Prover { workers: vec![] }
     }
 
-    pub async fn start_cpu(mut self, pool_ip: SocketAddr, worker: u8, thread_per_worker: u8) -> Result<ProverHandler> {
+    async fn start_cpu(
+        mut self,
+        worker: u8,
+        thread_per_worker: u8,
+        address: Address<Testnet2>,
+        name: String,
+        pool_ip: SocketAddr,
+    ) -> Result<Sender<ProverMsg>> {
         let (prover_router, rx) = mpsc::channel(100);
-        let client_router = Client::start(pool_ip, prover_router.clone(), self.name.clone(), self.address);
+        let client_router = Client::start(pool_ip, prover_router.clone(), name, address);
         let statistic_router = Statistic::start(client_router.clone());
         for _ in 0..worker {
             self.workers.push(Worker::start_cpu(
@@ -63,13 +71,18 @@ impl Prover {
 
         self.serve(rx, client_router, statistic_router);
         info!("prover-cpu started");
-        Ok(ProverHandler {
-            sender: prover_router.clone(),
-        })
+        Ok(prover_router)
     }
 
     #[cfg(feature = "cuda")]
-    pub async fn start_gpu(mut self, pool_ip: SocketAddr, worker: u8, gpus: Vec<u8>) -> Result<ProverHandler> {
+    async fn start_gpu(
+        mut self,
+        worker: u8,
+        gpus: Vec<u8>,
+        address: Address<Testnet2>,
+        name: String,
+        pool_ip: SocketAddr,
+    ) -> Result<ProverHandler> {
         let all = Device::all();
         if all.is_empty() {
             bail!("No available gpu in your device");
@@ -103,7 +116,7 @@ impl Prover {
         })
     }
 
-    pub fn serve(
+    fn serve(
         mut self,
         mut rx: Receiver<ProverMsg>,
         client_router: Sender<ClientMsg>,
@@ -115,6 +128,8 @@ impl Prover {
                     ProverMsg::Exit => {
                         if let Err(err) = self.exit(&client_router, &statistic_router).await {
                             error!("failed to exit: {err}");
+                            // grace exit failed, force exit
+                            process::exit(1);
                         }
                         break;
                     }
@@ -169,13 +184,49 @@ impl Prover {
 }
 
 pub struct ProverHandler {
-    sender: Sender<ProverMsg>,
+    running: AtomicBool,
+    prover_router: RwLock<Sender<ProverMsg>>,
 }
 
 impl ProverHandler {
-    pub async fn stop(&self) {
-        if let Err(err) = self.sender.send(ProverMsg::Exit).await {
-            error!("failed to stop prover: {err}");
+    pub fn new() -> Self {
+        let (tx, _) = mpsc::channel(1);
+        Self {
+            running: AtomicBool::new(false),
+            prover_router: RwLock::new(tx),
         }
+    }
+
+    pub async fn stop(&self) {
+        if self.running() {
+            let sender = self.prover_router.read().unwrap();
+            if let Err(err) = sender.send(ProverMsg::Exit).await {
+                error!("failed to stop prover: {err}");
+            }
+        }
+    }
+
+    pub async fn start_cpu(
+        &self,
+        pool_ip: SocketAddr,
+        worker: u8,
+        thread_per_worker: u8,
+        name: String,
+        address: Address<Testnet2>,
+    ) -> Result<()> {
+        ensure!(!self.running(), "prover is already running");
+        self.running.store(true, Ordering::SeqCst);
+
+        let prover = Prover::new();
+        let router = prover
+            .start_cpu(worker, thread_per_worker, address, name, pool_ip)
+            .await?;
+        let mut prover_router = self.prover_router.write().unwrap();
+        *prover_router = router;
+        Ok(())
+    }
+
+    fn running(&self) -> bool {
+        self.running.load(Ordering::SeqCst)
     }
 }

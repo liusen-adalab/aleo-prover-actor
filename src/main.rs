@@ -1,8 +1,10 @@
+use std::time::Duration;
 use std::{future, net::SocketAddr};
 
 use aleo_prover_actor::create_key;
-use aleo_prover_actor::prover::Prover;
+use aleo_prover_actor::prover::ProverHandler;
 use anyhow::{Context, Result};
+use log::error;
 use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
@@ -114,8 +116,13 @@ fn main() -> Result<()> {
                 worker,
                 thread_per_worker,
             } => {
-                let prover = Prover::new(info.name, info.address);
-                let _ = prover.start_cpu(info.pool_ip, worker, thread_per_worker).await;
+                let prover = ProverHandler::new();
+                if let Err(err) = prover
+                    .start_cpu(info.pool_ip, worker, thread_per_worker, info.name, info.address)
+                    .await
+                {
+                    error!("failed to start prover: {err}");
+                }
             }
             #[cfg(feature = "cuda")]
             Command::MineGpu {
