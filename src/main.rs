@@ -7,6 +7,7 @@ use snarkvm::dpc::testnet2::Testnet2;
 use snarkvm::prelude::Address;
 use structopt::StructOpt;
 use tokio::runtime;
+use tracing_log::LogTracer;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
@@ -76,11 +77,13 @@ struct Info {
 
 fn set_log(debug: bool) -> Result<()> {
     let level = if debug {
-        tracing::Level::DEBUG
+        log::LevelFilter::Debug
     } else {
-        tracing::Level::INFO
+        log::LevelFilter::Info
     };
-    let filter = EnvFilter::from_default_env().add_directive(level.into());
+    LogTracer::builder().with_max_level(level).init()?;
+
+    let filter = EnvFilter::from_default_env().add_directive(tracing::Level::DEBUG.into());
     let subscriber = tracing_subscriber::fmt::Subscriber::builder()
         .with_env_filter(filter)
         .finish();

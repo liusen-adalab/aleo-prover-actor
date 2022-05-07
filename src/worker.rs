@@ -17,7 +17,7 @@ use tokio::sync::{
     mpsc::{self, Sender},
     oneshot,
 };
-use tracing::{debug, error, info};
+use log::{debug, error, info};
 
 use crate::{client::ClientMsg, prover::ProverMsg, statistic::StatisticMsg};
 use tokio::task;

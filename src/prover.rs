@@ -9,7 +9,7 @@ use tokio::sync::{
     mpsc::{self, Receiver, Sender},
     oneshot,
 };
-use tracing::{error, info};
+use log::{error, info};
 
 use crate::{
     client::{Client, ClientMsg},

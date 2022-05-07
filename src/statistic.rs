@@ -6,7 +6,7 @@ use ansi_term::Color::{Cyan, Green, Red};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::oneshot;
 use tokio::task;
-use tracing::{error, info};
+use log::{error, info};
 
 use crate::client::ClientMsg;
 
