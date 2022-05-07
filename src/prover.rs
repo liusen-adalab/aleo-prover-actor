@@ -3,7 +3,7 @@ use std::{
     process,
     sync::{
         atomic::{AtomicBool, Ordering},
-        Arc, RwLock,
+        Arc, 
     }, str::FromStr,
 };
 
@@ -15,7 +15,7 @@ use snarkvm::{
 };
 use tokio::sync::{
     mpsc::{self, Receiver, Sender},
-    oneshot,
+    oneshot, RwLock,
 };
 
 use crate::{
@@ -200,7 +200,7 @@ impl ProverHandler {
 
     pub async fn stop(&self) {
         if self.running() {
-            let sender = self.prover_router.read().unwrap();
+            let sender = self.prover_router.read().await;
             if let Err(err) = sender.send(ProverMsg::Exit).await {
                 error!("failed to stop prover: {err}");
             }
@@ -223,7 +223,7 @@ impl ProverHandler {
         let router = prover
             .start_cpu(worker, thread_per_worker, address, name, pool_ip)
             .await?;
-        let mut prover_router = self.prover_router.write().unwrap();
+        let mut prover_router = self.prover_router.write().await;
         *prover_router = router;
         Ok(())
     }
