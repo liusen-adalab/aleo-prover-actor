@@ -8,7 +8,7 @@ use std::{
 };
 
 use anyhow::{ensure, Result};
-use log::{error, info};
+use log::{error, info, debug};
 use snarkvm::{
     dpc::testnet2::Testnet2,
     prelude::{Address, BlockTemplate},
@@ -140,7 +140,7 @@ impl Prover {
                     }
                 }
             }
-            info!("prover exited");
+            debug!("prover exited");
         });
     }
 
@@ -168,10 +168,11 @@ impl Prover {
         client_router.send(ClientMsg::Exit(tx)).await.context("client")?;
         rx.await.context("failed to get exit response of client")?;
 
-        for worker in self.workers.iter() {
+        for (i, worker) in self.workers.iter().enumerate() {
             let (tx, rx) = oneshot::channel();
             worker.send(WorkerMsg::Exit(tx)).await.context("worker")?;
             rx.await.context("failed to get exit response of worker")?;
+            debug!("worker {i} terminated");
         }
         let (tx, rx) = oneshot::channel();
         statistic_router

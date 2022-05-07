@@ -7,6 +7,7 @@ use std::{
 };
 
 use aleo_mine_protocol::Message as PoolMessage;
+use log::{debug, error};
 use rand::thread_rng;
 use rayon::{ThreadPool, ThreadPoolBuilder};
 use snarkvm::{
@@ -17,7 +18,6 @@ use tokio::sync::{
     mpsc::{self, Sender},
     oneshot,
 };
-use log::{debug, error, info};
 
 use crate::{client::ClientMsg, prover::ProverMsg, statistic::StatisticMsg};
 use tokio::task;
@@ -85,7 +85,6 @@ impl Worker {
                     }
                 }
             }
-            debug!("worker terminated");
         });
         tx
     }
@@ -96,13 +95,13 @@ impl Worker {
             spin_loop();
         }
         self.terminator.store(false, Ordering::SeqCst);
-        debug!("the pool is ready to go");
     }
 
     async fn new_work(&self, template: Arc<BlockTemplate<Testnet2>>, share_difficulty: u64, gpu_index: i16) {
         let height = template.block_height();
         debug!("starting new work: {}", height);
         self.wait_for_terminator();
+        debug!("the thread pool is ready to go");
 
         let terminator = self.terminator.clone();
         let ready = self.ready.clone();
@@ -148,11 +147,11 @@ impl Worker {
                         }
                     }
                     Err(_) => {
-                        info!("block {} terminated", height);
                         break;
                     }
                 }
             }
+            debug!("block {} terminated", height);
             ready.store(true, Ordering::SeqCst);
         });
         rx.await.unwrap();

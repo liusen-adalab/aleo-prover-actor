@@ -54,6 +54,8 @@ impl Client {
                             }
                             ClientMsg::Exit(sender) => {
                                 sender.send(()).expect("client failed to respond exit msg");
+                                debug!("client exited");
+                                return
                             },
                         }
                     }

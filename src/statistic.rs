@@ -5,8 +5,8 @@ use aleo_mine_protocol::Message;
 use ansi_term::Color::{Cyan, Green, Red};
 use tokio::sync::mpsc::{self, Receiver, Sender};
 use tokio::sync::oneshot;
-use tokio::task;
-use log::{error, info};
+use tokio::task::{self, JoinHandle};
+use log::{error, info, debug};
 
 use crate::client::ClientMsg;
 
@@ -19,6 +19,8 @@ pub struct Statistic {
     submit_invalid_count: u32,
 
     client_router: Sender<ClientMsg>,
+    
+    report_handler: JoinHandle<()>
 }
 
 #[derive(Debug)]
@@ -32,6 +34,7 @@ pub enum StatisticMsg {
 impl Statistic {
     pub fn start(client_router: Sender<ClientMsg>) -> Sender<StatisticMsg> {
         let (tx, rx) = mpsc::channel(100);
+        let handler = Self::period_report(tx.clone());
         let statistic = Statistic {
             prove_weight_valid: Default::default(),
             prove_weight_invalid: Default::default(),
@@ -39,9 +42,9 @@ impl Statistic {
             submit_valid_count: Default::default(),
             submit_invalid_count: Default::default(),
             client_router,
+            report_handler: handler
         };
         statistic.serve(rx);
-        Self::period_report(tx.clone());
         info!("statistic mod started");
         tx
     }
@@ -91,7 +94,12 @@ impl Statistic {
                             );
                         }
                     }
-                    StatisticMsg::Exit(responder) => responder.send(()).expect("failed to respond exit msg"),
+                    StatisticMsg::Exit(responder) => {
+                        self.report_handler.abort();
+                        responder.send(()).expect("failed to respond exit msg");
+                        debug!("statistic exited");
+                        return
+                    },
                     StatisticMsg::Report => {
                         let m1 = log.get(0).map(|a| *a);
                         let m5 = log.get(4).map(|a| *a);
@@ -126,7 +134,7 @@ impl Statistic {
         });
     }
 
-    fn period_report(self_sender: Sender<StatisticMsg>) {
+    fn period_report(self_sender: Sender<StatisticMsg>) -> JoinHandle<()>{
         task::spawn(async move {
             loop {
                 tokio::time::sleep(Duration::from_secs(60)).await;
@@ -134,7 +142,7 @@ impl Statistic {
                     error!("statistic has exited: {err}");
                 }
             }
-        });
+        })
     }
 
     fn calculate_proof_rate(&self, past: Option<u32>, interval: Duration) -> String {
