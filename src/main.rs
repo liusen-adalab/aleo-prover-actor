@@ -39,7 +39,7 @@ enum Command {
         /// Number of threads that every worker will use
         /// It is recommended to ensure
         /// `worker * thread-per-worker` < `amount of threads of your device`
-        #[structopt(short, long, default_value = "8")]
+        #[structopt(short, long, default_value = "4")]
         #[structopt(verbatim_doc_comment)]
         thread_per_worker: u8,
     },
