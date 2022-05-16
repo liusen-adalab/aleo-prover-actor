@@ -30,7 +30,7 @@ rev = "e872e7c8819f9cfc81317f5c7e76728726507ab4"
 git = "https://github.com/liusen-adalab/aleo-mine-protocol.git"
 
 [features]
-default = ["cuda"]
+default = []
 cuda = ["snarkvm/cuda", "rust-gpu-tools"]
 
 [profile.release]

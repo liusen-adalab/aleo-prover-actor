@@ -1,6 +1,6 @@
 use snarkvm::{dpc::testnet2::Testnet2, prelude::Account};
 
-mod client;
+pub mod client;
 pub mod prover;
 mod statistic;
 mod worker;

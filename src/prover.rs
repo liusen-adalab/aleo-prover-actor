@@ -1,6 +1,8 @@
+#[cfg(feature = "cuda")]
+use process::Command;
 use std::{
     net::SocketAddr,
-    process::{self, Command},
+    process,
     str::FromStr,
     sync::{
         atomic::{AtomicBool, Ordering},
@@ -25,9 +27,9 @@ use crate::{
     worker::{Worker, WorkerMsg},
 };
 use anyhow::Context;
-use tokio::task;
 #[cfg(feature = "cuda")]
 use rust_gpu_tools::Device;
+use tokio::task;
 
 pub struct Prover {
     workers: Vec<Sender<WorkerMsg>>,
@@ -38,6 +40,16 @@ pub enum ProverMsg {
     NewWork(BlockTemplate<Testnet2>, u64),
     SubmitResult(bool, Option<String>),
     Exit(oneshot::Sender<()>),
+}
+
+impl ProverMsg {
+    pub fn name(&self) -> &str {
+        match self {
+            ProverMsg::NewWork(..) => "new work",
+            ProverMsg::SubmitResult(_, _) => "submit result",
+            ProverMsg::Exit(_) => "exit",
+        }
+    }
 }
 
 impl Prover {
@@ -241,7 +253,7 @@ impl ProverHandler {
         name: String,
         pool_ip: SocketAddr,
     ) -> Result<()> {
-        ensure!(detect_gpu(), "there is no cuda capable gpu in device");
+        ensure!(detect_gpu(), "there is no cuda-tool-kit on your device");
         let address = Address::from_str(&address.to_string()).context("invalid aleo address")?;
         ensure!(!self.running(), "prover is already running");
         self.running.store(true, Ordering::SeqCst);
@@ -258,6 +270,7 @@ impl ProverHandler {
     }
 }
 
+#[cfg(feature = "cuda")]
 fn detect_gpu() -> bool {
     let output = if cfg!(target_os = "windows") {
         Command::new("cmd")

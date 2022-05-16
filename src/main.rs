@@ -1,4 +1,3 @@
-use std::time::Duration;
 use std::{future, net::SocketAddr};
 
 use aleo_prover_actor::create_key;
@@ -14,6 +13,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::EnvFilter;
 
 #[derive(StructOpt, Debug)]
+#[structopt(name = "aleo-miner", about = "A miner program of aleo pool")]
 struct Opt {
     #[structopt(short)]
     /// use debug mode
@@ -25,6 +25,7 @@ struct Opt {
 
 #[derive(StructOpt, Debug)]
 enum Command {
+    /// generate an aleo account
     GenKey,
     /// mine with cpu
     MineCpu {
@@ -122,9 +123,8 @@ fn main() -> Result<()> {
                     .await
                 {
                     error!("failed to start prover: {err}");
+                    return;
                 }
-                tokio::time::sleep(Duration::from_secs(5)).await;
-                prover.stop().await;
             }
             #[cfg(feature = "cuda")]
             Command::MineGpu {
@@ -138,6 +138,7 @@ fn main() -> Result<()> {
                     .await
                 {
                     error!("failed to start prover: {err}");
+                    return;
                 }
             }
         }

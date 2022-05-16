@@ -20,7 +20,7 @@ use log::{debug, error, info, warn};
 use crate::prover::ProverMsg;
 use anyhow::Context;
 
-pub(crate) struct Client;
+pub struct Client;
 
 #[derive(Debug)]
 pub enum ClientMsg {
