@@ -233,12 +233,12 @@ impl ProverHandler {
     ) -> Result<()> {
         let address = Address::from_str(&address.to_string()).context("invalid aleo address")?;
         ensure!(!self.running(), "prover is already running");
-        self.running.store(true, Ordering::SeqCst);
 
         let prover = Prover::new();
         let router = prover
             .start_cpu(worker, thread_per_worker, address, name, pool_ip)
             .await?;
+        self.running.store(true, Ordering::SeqCst);
         let mut prover_router = self.prover_router.write().await;
         *prover_router = router;
         Ok(())
@@ -256,10 +256,10 @@ impl ProverHandler {
         ensure!(detect_gpu(), "there is no cuda-tool-kit on your device");
         let address = Address::from_str(&address.to_string()).context("invalid aleo address")?;
         ensure!(!self.running(), "prover is already running");
-        self.running.store(true, Ordering::SeqCst);
 
         let prover = Prover::new();
         let router = prover.start_gpu(worker_per_gpu, gpus, address, name, pool_ip).await?;
+        self.running.store(true, Ordering::SeqCst);
         let mut prover_router = self.prover_router.write().await;
         *prover_router = router;
         Ok(())
