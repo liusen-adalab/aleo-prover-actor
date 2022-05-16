@@ -249,7 +249,7 @@ impl ProverHandler {
         &self,
         worker_per_gpu: u8,
         gpus: Vec<u8>,
-        address: Address<Testnet2>,
+        address: impl ToString,
         name: String,
         pool_ip: SocketAddr,
     ) -> Result<()> {
